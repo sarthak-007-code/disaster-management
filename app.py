@@ -8,6 +8,11 @@ app = Flask(__name__)
 # Google API key (store in environment variables in production)
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 
+# Ensure the uploads folder exists
+UPLOAD_FOLDER = 'static/uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
 # Database setup
 DB_PATH = "reports.db"
 
@@ -70,11 +75,16 @@ def volunteer_page():
 # Submit a report
 @app.route('/report', methods=['POST'])
 def report_disaster():
-    data = request.get_json()
-    location = data['location']
-    description = data['description']
-    latitude = data.get('latitude')
-    longitude = data.get('longitude')
+    # Since we're handling file uploads, we can't use request.get_json()
+    location = request.form.get('location')
+    description = request.form.get('description')
+    latitude = request.form.get('latitude')
+    longitude = request.form.get('longitude')
+    photo = request.files.get('photo')
+
+    # Convert latitude and longitude to float (or None)
+    latitude = float(latitude) if latitude and latitude != 'null' else None
+    longitude = float(longitude) if longitude and longitude != 'null' else None
 
     # If latitude and longitude are not provided, geocode the location
     if not latitude or not longitude:
@@ -94,10 +104,29 @@ def report_disaster():
             latitude = None
             longitude = None
 
+    # Handle photo upload
+    photo_path = None
+    if photo:
+        # Validate file type (only allow images)
+        if not photo.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            return jsonify({'message': 'Only PNG, JPG, and JPEG files are allowed'}), 400
+        # Validate file size (e.g., max 5MB)
+        photo.seek(0, os.SEEK_END)
+        file_size = photo.tell()
+        if file_size > 5 * 1024 * 1024:  # 5MB limit
+            return jsonify({'message': 'File size exceeds 5MB limit'}), 400
+        photo.seek(0)  # Reset file pointer
+
+        # Save the file
+        filename = f"{os.urandom(16).hex()}_{photo.filename}"
+        photo_path = os.path.join(UPLOAD_FOLDER, filename)
+        photo.save(photo_path)
+        photo_path = f"/{photo_path}"  # Store as URL path (e.g., /static/uploads/...)
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT INTO reports (location, description, latitude, longitude) VALUES (?, ?, ?, ?)",
-              (location, description, latitude, longitude))
+    c.execute("INSERT INTO reports (location, description, latitude, longitude, photo_path) VALUES (?, ?, ?, ?, ?)",
+              (location, description, latitude, longitude, photo_path))
     conn.commit()
     conn.close()
 
