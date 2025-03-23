@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            margin: 20px 0;
+            border: 1px solid #ccc;
+        }
+        #reportsList {
+            margin-top: 20px;
+        }
+        .report {
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        button {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Volunteer Dashboard</h1>
+        <div id="map"></div>
+        <button onclick="fetchReports()">Refresh Reports</button>
+        <button onclick="clearReports()">Clear Reports</button>
+        <div id="reportsList"></div>
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCcJ0peOwMYeNNV-MCoy68andG9tX0-_xQ"></script>
+    <script>
+        let map;
+        let markers = [];
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 0, lng: 0 },
+                zoom: 2
+            });
+        }
+
+        async function fetchReports() {
+            const response = await fetch('/reports');
+            const reports = await response.json();
+
+            // Clear existing markers
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+
+            // Update reports list
+            const reportsList = document.getElementById('reportsList');
+            reportsList.innerHTML = '';
+            reports.forEach(report => {
+                const reportDiv = document.createElement('div');
+                reportDiv.className = 'report';
+                reportDiv.innerHTML = `<strong>Location:</strong> ${report.location}<br>
+                                       <strong>Description:</strong> ${report.description}`;
+                reportsList.appendChild(reportDiv);
+
+                // Add marker if latitude and longitude are available (we'll add this later)
+                if (report.latitude && report.longitude) {
+                    const marker = new google.maps.Marker({
+                        position: { lat: report.latitude, lng: report.longitude },
+                        map: map,
+                        title: report.location
+                    });
+                    markers.push(marker);
+                }
+            });
+
+            // Center map on the first report (if any)
+            if (markers.length > 0) {
+                map.setCenter(markers[0].getPosition());
+                map.setZoom(5);
+            }
+        }
+
+        async function clearReports() {
+            await fetch('/clear-reports', { method: 'POST' });
+            fetchReports();
+        }
+
+        // Initialize map and fetch reports on page load
+        initMap();
+        fetchReports();
+    </script>
+</body>
+</html>

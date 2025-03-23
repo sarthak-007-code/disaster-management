@@ -2,91 +2,58 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Disaster Relief Platform</title>
     <style>
-        body { font-family: Arial, sans-serif; }
-        #map { height: 400px; width: 100%; }
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        select, button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
-    <h1>Report a Disaster</h1>
-    <form id="reportForm">
-        <label>Location (e.g., New York):</label><br>
-        <input type="text" id="location" required><br>
-        <label>Description:</label><br>
-        <textarea id="description" required></textarea><br>
-        <button type="submit">Submit Report</button>
-    </form>
-
-    <h2>Disaster Map</h2>
-    <div id="map"></div>
-
-    <h2>Reported Disasters</h2>
-    <ul id="reports"></ul>
-
-    <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCcJ0peOwMYeNNV-MCoy68andG9tX0-_xQ&callback=initMap" onerror="console.error('Failed to load Google Maps API')"></script>
-    <script>
-        let map;
-        function initMap() {
-            console.log("Google Maps API loaded successfully");
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: { lat: 40.7128, lng: -74.0060 }, // Default: New York
-                zoom: 10
-            });
-        }
-
-        document.getElementById("reportForm").addEventListener("submit", function(e) {
-            e.preventDefault();
-            let location = document.getElementById("location").value;
-            let description = document.getElementById("description").value;
-
-            fetch('/report', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ location, description })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Add to list
-                let ul = document.getElementById("reports");
-                let li = document.createElement("li");
-                li.textContent = `${location}: ${description}`;
-                ul.appendChild(li);
-
-                // Geocode the location
-                fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location)}&key=AIzaSyCcJ0peOwMYeNNV-MCoy68andG9tX0-_xQ`)
-                    .then(response => response.json())
-                    .then(geoData => {
-                        if (geoData.status === "OK") {
-                            let coords = geoData.results[0].geometry.location;
-                            let marker = new google.maps.Marker({
-                                position: coords,
-                                map: map,
-                                title: location
-                            });
-                            map.setCenter(coords);
-                        } else {
-                            console.error("Geocoding failed:", geoData.status);
-                            // Fallback to hardcoded coordinates
-                            let marker = new google.maps.Marker({
-                                position: { lat: 40.7128, lng: -74.0060 },
-                                map: map,
-                                title: location
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Geocoding error:", error);
-                        // Fallback to hardcoded coordinates
-                        let marker = new google.maps.Marker({
-                            position: { lat: 40.7128, lng: -74.0060 },
-                            map: map,
-                            title: location
-                        });
-                    });
-            })
-            .catch(error => console.error("Fetch error:", error));
-        });
-    </script>
+    <div class="container">
+        <h1>Welcome to the Disaster Relief Platform</h1>
+        <p>Please select your role:</p>
+        <form id="roleForm" action="/set-role" method="POST">
+            <select name="role" id="role" required>
+                <option value="" disabled selected>Select your role</option>
+                <option value="user">I am a User (Report a Disaster)</option>
+                <option value="volunteer">I am a Volunteer (Help with Relief)</option>
+            </select>
+            <br>
+            <button type="submit">Continue</button>
+        </form>
+    </div>
 </body>
 </html>
