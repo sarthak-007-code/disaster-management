@@ -4,8 +4,8 @@ import json
 
 app = Flask(__name__)
 
-# Your Firebase Server Key
-SERVER_KEY = "794832032280"  # Replace with Server Key from Cloud Messaging
+
+SERVER_KEY = "794832032280"  
 
 @app.route('/notify', methods=['POST'])
 def send_notification():
