@@ -32,17 +32,16 @@ def init_db():
         conn.commit()
         conn.close()
 
+# Initialize the database on startup
 init_db()
 
 # Homepage with role selector
 @app.route('/')
 def home():
-    role = request.cookies.get('role')
-    if role == 'user':
-        return app.send_static_file('report.html')
-    elif role == 'volunteer':
-        return app.send_static_file('volunteer.html')
-    return app.send_static_file('index.html')
+    # Clear the role cookie
+    resp = make_response(app.send_static_file('index.html'))
+    resp.set_cookie('role', '', expires=0)
+    return resp
 
 # Set role and redirect
 @app.route('/set-role', methods=['POST'])
@@ -93,16 +92,36 @@ def report_disaster():
                 f'https://maps.googleapis.com/maps/api/geocode/json?address={location}&key={GOOGLE_API_KEY}'
             )
             geo_data = response.json()
+            print(f"Geocoding response for '{location}': {geo_data}")  # Debug log
             if geo_data['status'] == 'OK':
                 latitude = geo_data['results'][0]['geometry']['location']['lat']
                 longitude = geo_data['results'][0]['geometry']['location']['lng']
             else:
+                print(f"Geocoding failed for '{location}': {geo_data['status']}")
+                # Fallback coordinates for common locations
+                location_lower = location.lower()
+                if "pune" in location_lower:
+                    latitude = 18.5204
+                    longitude = 73.8567
+                elif "mumbai" in location_lower:
+                    latitude = 19.0760
+                    longitude = 72.8777
+                else:
+                    latitude = None
+                    longitude = None
+        except Exception as e:
+            print(f"Geocoding error for '{location}': {e}")
+            # Fallback coordinates for common locations
+            location_lower = location.lower()
+            if "pune" in location_lower:
+                latitude = 18.5204
+                longitude = 73.8567
+            elif "mumbai" in location_lower:
+                latitude = 19.0760
+                longitude = 72.8777
+            else:
                 latitude = None
                 longitude = None
-        except Exception as e:
-            print(f"Geocoding error: {e}")
-            latitude = None
-            longitude = None
 
     # Handle photo upload
     photo_path = None
@@ -125,8 +144,8 @@ def report_disaster():
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT INTO reports (location, description, latitude, longitude, photo_path) VALUES (?, ?, ?, ?, ?)",
-              (location, description, latitude, longitude, photo_path))
+    c.execute("INSERT INTO reports (location, description, latitude, longitude, photo_path, status) VALUES (?, ?, ?, ?, ?, ?)",
+              (location, description, latitude, longitude, photo_path, 'Not Reported Yet'))
     conn.commit()
     conn.close()
 

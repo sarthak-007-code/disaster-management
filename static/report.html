@@ -66,7 +66,7 @@
         <h1>Report a Disaster</h1>
         <form id="reportForm" enctype="multipart/form-data">
             <div class="location-container">
-                <input type="text" id="location" name="location" placeholder="Location (e.g., Pune)" required>
+                <input type="text" id="location" name="location" placeholder="Enter a specific location (e.g., D.Y. Patil College, Akurdi, Pune)" required>
                 <button type="button" id="getLocation">Get My Location</button>
             </div>
             <textarea id="description" name="description" placeholder="Describe the disaster" required></textarea>
@@ -78,7 +78,7 @@
     </div>
 
     <script>
-        const API_KEY = 'AIzaSyCcJ0peOwMYeNNV-MCoy68andG9tX0-_xQ';
+        const API_KEY = 'AIzaSyB7csLuU49UkQ14AwwH-ehMMgm157aofKo';
 
         // Get live location
         document.getElementById('getLocation').addEventListener('click', () => {
@@ -152,15 +152,17 @@
             });
 
             const result = await response.json();
+            const messageDiv = document.getElementById('message');
             if (response.ok) {
-                document.getElementById('message').textContent = result.message;
+                messageDiv.textContent = result.message;
+                messageDiv.style.color = 'green';
                 document.getElementById('reportForm').reset();
                 locationInput.dataset.latitude = '';
                 locationInput.dataset.longitude = '';
                 document.getElementById('photoPreview').style.display = 'none';
             } else {
-                document.getElementById('message').textContent = result.message || 'Error submitting report';
-                document.getElementById('message').style.color = 'red';
+                messageDiv.textContent = result.message || 'Error submitting report';
+                messageDiv.style.color = 'red';
             }
         });
     </script>
