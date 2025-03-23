@@ -35,6 +35,17 @@
         .report {
             padding: 10px;
             border-bottom: 1px solid #ccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-details {
+            flex-grow: 1;
+        }
+        .report-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
         }
         button {
             padding: 10px;
@@ -49,6 +60,11 @@
         button:hover {
             background-color: #0056b3;
         }
+        select {
+            padding: 5px;
+            font-size: 14px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -56,7 +72,7 @@
         <h1>Volunteer Dashboard</h1>
         <div id="map"></div>
         <button onclick="fetchReports()">Refresh Reports</button>
-        <button onclick="clearReports()">Clear Reports</button>
+        <button onclick="clearSelectedReports()">Clear Selected Reports</button>
         <div id="reportsList"></div>
     </div>
 
@@ -83,14 +99,28 @@
             // Update reports list
             const reportsList = document.getElementById('reportsList');
             reportsList.innerHTML = '';
+            const bounds = new google.maps.LatLngBounds();
             reports.forEach(report => {
                 const reportDiv = document.createElement('div');
                 reportDiv.className = 'report';
-                reportDiv.innerHTML = `<strong>Location:</strong> ${report.location}<br>
-                                       <strong>Description:</strong> ${report.description}`;
+                reportDiv.innerHTML = `
+                    <div class="report-details">
+                        <strong>Location:</strong> ${report.location}<br>
+                        <strong>Description:</strong> ${report.description}<br>
+                        <strong>Status:</strong> ${report.status}
+                    </div>
+                    <div class="report-actions">
+                        <input type="checkbox" class="report-checkbox" data-id="${report.id}">
+                        <select onchange="updateStatus(${report.id}, this.value)">
+                            <option value="Not Reported Yet" ${report.status === 'Not Reported Yet' ? 'selected' : ''}>Not Reported Yet</option>
+                            <option value="Reporting" ${report.status === 'Reporting' ? 'selected' : ''}>Reporting</option>
+                            <option value="In Process" ${report.status === 'In Process' ? 'selected' : ''}>In Process</option>
+                            <option value="Handled" ${report.status === 'Handled' ? 'selected' : ''}>Handled</option>
+                        </select>
+                    </div>
+                `;
                 reportsList.appendChild(reportDiv);
 
-                // Add marker if latitude and longitude are available (we'll add this later)
                 if (report.latitude && report.longitude) {
                     const marker = new google.maps.Marker({
                         position: { lat: report.latitude, lng: report.longitude },
@@ -98,18 +128,45 @@
                         title: report.location
                     });
                     markers.push(marker);
+                    bounds.extend(marker.getPosition());
                 }
             });
 
-            // Center map on the first report (if any)
             if (markers.length > 0) {
-                map.setCenter(markers[0].getPosition());
-                map.setZoom(5);
+                map.fitBounds(bounds);
+            } else {
+                map.setCenter({ lat: 0, lng: 0 });
+                map.setZoom(2);
             }
         }
 
-        async function clearReports() {
-            await fetch('/clear-reports', { method: 'POST' });
+        async function clearSelectedReports() {
+            const checkboxes = document.querySelectorAll('.report-checkbox:checked');
+            const reportIds = Array.from(checkboxes).map(checkbox => checkbox.dataset.id);
+
+            if (reportIds.length === 0) {
+                alert('Please select at least one report to clear.');
+                return;
+            }
+
+            await fetch('/clear-reports', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ report_ids: reportIds })
+            });
+            fetchReports();
+        }
+
+        async function updateStatus(reportId, status) {
+            await fetch('/update-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ report_id: reportId, status: status })
+            });
             fetchReports();
         }
 

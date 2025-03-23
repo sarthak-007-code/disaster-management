@@ -6,7 +6,7 @@ import sqlite3
 app = Flask(__name__)
 
 # Google API key (store in environment variables in production)
-GOOGLE_API_KEY = 'AIzaSyCcJ0peOwMYeNNV-MCoy68andG9tX0-_xQ'
+GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 
 # Database setup
 DB_PATH = "reports.db"
@@ -22,7 +22,7 @@ def init_db():
             latitude FLOAT,
             longitude FLOAT,
             photo_path TEXT,
-            status TEXT DEFAULT 'Reported'
+            status TEXT DEFAULT 'Not Reported Yet'
         )''')
         conn.commit()
         conn.close()
@@ -123,15 +123,41 @@ def get_reports():
     conn.close()
     return jsonify(reports)
 
-# Clear reports
+# Clear selected reports
 @app.route('/clear-reports', methods=['POST'])
 def clear_reports():
+    data = request.get_json()
+    report_ids = data.get('report_ids', [])
+
+    if not report_ids:
+        return jsonify({'message': 'No reports selected to clear'}), 400
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("DELETE FROM reports")
+    c.execute("DELETE FROM reports WHERE id IN ({})".format(','.join('?' * len(report_ids))), report_ids)
     conn.commit()
     conn.close()
-    return jsonify({'message': 'Reports cleared'})
+    return jsonify({'message': 'Selected reports cleared'})
+
+# Update the status of a report
+@app.route('/update-status', methods=['POST'])
+def update_status():
+    data = request.get_json()
+    report_id = data.get('report_id')
+    status = data.get('status')
+
+    if not report_id or not status:
+        return jsonify({'message': 'Report ID and status are required'}), 400
+
+    if status not in ['Not Reported Yet', 'Reporting', 'In Process', 'Handled']:
+        return jsonify({'message': 'Invalid status'}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE reports SET status = ? WHERE id = ?", (status, report_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Status updated'})
 
 # Serve uploaded files
 @app.route('/uploads/<filename>')
