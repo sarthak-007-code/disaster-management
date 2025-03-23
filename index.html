@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Disaster Relief Platform</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #reports { margin-top: 20px; }
+        button { margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Disaster Relief Platform</h1>
+
+    <!-- Authentication -->
+    <h2>Login/Sign Up</h2>
+    <input type="email" id="email" placeholder="Email" required><br>
+    <input type="password" id="password" placeholder="Password" required><br>
+    <button onclick="signup()">Sign Up</button>
+    <button onclick="login()">Login</button>
+    <button onclick="logout()" id="logoutBtn" style="display:none;">Logout</button>
+    <p id="auth-status"></p>
+
+    <!-- Report Form -->
+    <h2>Report a Disaster</h2>
+    <form id="reportForm" style="display:none;">
+        <label>Location:</label><br>
+        <input type="text" id="location" required><br>
+        <label>Description:</label><br>
+        <textarea id="description" required></textarea><br>
+        <button type="submit">Submit Report</button>
+    </form>
+
+    <!-- Real-Time Reports -->
+    <h2>Reported Disasters</h2>
+    <ul id="reports"></ul>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js"></script>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlmSmEcP-MRSOXD4VVtuGux-ZNBdnANh0",
+            authDomain: "disaster-relief-3b324.firebaseapp.com",
+            projectId: "disaster-relief-3b324",
+            storageBucket: "disaster-relief-3b324.appspot.com",
+            messagingSenderId: "794832032280", 
+            appId: "1:794832032280:web:d76df89381dfc4d1b3a96d" 
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const messaging = firebase.messaging();
+
+        // Authentication State
+        auth.onAuthStateChanged(user => {
+            const authStatus = document.getElementById("auth-status");
+            const reportForm = document.getElementById("reportForm");
+            const logoutBtn = document.getElementById("logoutBtn");
+            if (user) {
+                authStatus.textContent = `Logged in as: ${user.email}`;
+                reportForm.style.display = "block";
+                logoutBtn.style.display = "inline";
+            } else {
+                authStatus.textContent = "Please log in to report disasters.";
+                reportForm.style.display = "none";
+                logoutBtn.style.display = "none";
+            }
+        });
+
+        // Sign Up
+        function signup() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(() => alert("Signed up! Please log in."))
+                .catch(error => alert(error.message));
+        }
+
+        // Login
+        function login() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            auth.signInWithEmailAndPassword(email, password)
+                .catch(error => alert(error.message));
+        }
+
+        // Logout
+        function logout() {
+            auth.signOut();
+        }
+        //form submission
+        db.collection("disasters").add({
+            location: location,
+            description: description,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            userId: auth.currentUser.uid,
+            userEmail: auth.currentUser.email
+        })
+        .then(() => {
+            document.getElementById("reportForm").reset();
+        
+            // Send notification
+            fetch("http://localhost:5000/notify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ location, description })
+            }).then(response => response.json())
+              .then(data => console.log(data));
+        });
+
+        // Report Submission
+        document.getElementById("reportForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const location = document.getElementById("location").value.trim();
+            const description = document.getElementById("description").value.trim();
+
+            if (!location || !description) {
+                alert("Please fill out all fields!");
+                return;
+            }
+
+            db.collection("disasters").add({
+                location: location,
+                description: description,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: auth.currentUser.uid,
+                userEmail: auth.currentUser.email
+            })
+            .then(() => {
+                document.getElementById("reportForm").reset();
+            })
+            .catch(error => alert("Error: " + error.message));
+        });
+
+        // Real-Time Updates
+        db.collection("disasters").orderBy("timestamp", "desc")
+            .onSnapshot(snapshot => {
+                const reportsList = document.getElementById("reports");
+                reportsList.innerHTML = "";
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const li = document.createElement("li");
+                    li.textContent = `${data.location}: ${data.description} (Reported by ${data.userEmail})`;
+                    reportsList.appendChild(li);
+                });
+            });
+
+        // Notifications Setup
+        messaging.requestPermission()
+            .then(() => {
+                console.log("Notification permission granted.");
+                return messaging.getToken({ vapidKey: "YOUR_VAPID_KEY" }); // Replace with VAPID Key
+            })
+            .then(token => {
+                console.log("FCM Token:", token);
+                db.collection("users").doc(auth.currentUser?.uid).set({ fcmToken: token }, { merge: true });
+            })
+            .catch(error => console.log("Notification error:", error));
+
+        messaging.onMessage(payload => {
+            alert("New Disaster: " + payload.notification.body);
+        });
+    </script>
+    
+</body>
+</html>
