@@ -1,8 +1,12 @@
 import os
+import requests
 from flask import Flask, request, jsonify, make_response, send_from_directory
 import sqlite3
 
 app = Flask(__name__)
+
+# Google API key (store in environment variables in production)
+GOOGLE_API_KEY = 'AIzaSyCcJ0peOwMYeNNV-MCoy68andG9tX0-_xQ'
 
 # Database setup
 DB_PATH = "reports.db"
@@ -47,13 +51,12 @@ def set_role():
     resp.set_cookie('role', role)
     return resp
 
-
 # User interface for reporting disasters
 @app.route('/report-page')
 def report_page():
     role = request.cookies.get('role')
     if role != 'user':
-        return app.send_static_file('index.html')  # Redirect to homepage if not a user
+        return app.send_static_file('index.html')
     return app.send_static_file('report.html')
 
 # Volunteer interface for viewing disasters
@@ -61,25 +64,46 @@ def report_page():
 def volunteer_page():
     role = request.cookies.get('role')
     if role != 'volunteer':
-        return app.send_static_file('index.html')  # Redirect to homepage if not a volunteer
+        return app.send_static_file('index.html')
     return app.send_static_file('volunteer.html')
 
-# Existing endpoint to submit a report
+# Submit a report
 @app.route('/report', methods=['POST'])
 def report_disaster():
     data = request.get_json()
     location = data['location']
     description = data['description']
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+
+    # If latitude and longitude are not provided, geocode the location
+    if not latitude or not longitude:
+        try:
+            response = requests.get(
+                f'https://maps.googleapis.com/maps/api/geocode/json?address={location}&key={GOOGLE_API_KEY}'
+            )
+            geo_data = response.json()
+            if geo_data['status'] == 'OK':
+                latitude = geo_data['results'][0]['geometry']['location']['lat']
+                longitude = geo_data['results'][0]['geometry']['location']['lng']
+            else:
+                latitude = None
+                longitude = None
+        except Exception as e:
+            print(f"Geocoding error: {e}")
+            latitude = None
+            longitude = None
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("INSERT INTO reports (location, description) VALUES (?, ?)", (location, description))
+    c.execute("INSERT INTO reports (location, description, latitude, longitude) VALUES (?, ?, ?, ?)",
+              (location, description, latitude, longitude))
     conn.commit()
     conn.close()
 
     return jsonify({'message': 'Report added!', 'location': location, 'description': description})
 
-# Existing endpoint to fetch all reports
+# Fetch all reports
 @app.route('/reports', methods=['GET'])
 def get_reports():
     conn = sqlite3.connect(DB_PATH)
@@ -99,7 +123,7 @@ def get_reports():
     conn.close()
     return jsonify(reports)
 
-# Existing endpoint to clear reports
+# Clear reports
 @app.route('/clear-reports', methods=['POST'])
 def clear_reports():
     conn = sqlite3.connect(DB_PATH)
@@ -115,4 +139,4 @@ def uploaded_file(filename):
     return send_from_directory('static/uploads', filename)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)  # For local testing only
+    app.run(debug=True, host='0.0.0.0', port=5000)

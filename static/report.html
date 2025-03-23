@@ -48,13 +48,21 @@
             margin-top: 10px;
             color: green;
         }
+        .location-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Report a Disaster</h1>
         <form id="reportForm">
-            <input type="text" id="location" name="location" placeholder="Location (e.g., Pune)" required>
+            <div class="location-container">
+                <input type="text" id="location" name="location" placeholder="Location (e.g., Pune)" required>
+                <button type="button" id="getLocation">Get My Location</button>
+            </div>
             <textarea id="description" name="description" placeholder="Describe the disaster" required></textarea>
             <button type="submit">Submit Report</button>
         </form>
@@ -62,23 +70,65 @@
     </div>
 
     <script>
+        const API_KEY = 'AIzaSyCcJ0peOwMYeNNV-MCoy68andG9tX0-_xQ'; // Your Google API key
+
+        // Get live location
+        document.getElementById('getLocation').addEventListener('click', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        const latitude = position.coords.latitude;
+                        const longitude = position.coords.longitude;
+
+                        // Use Google Geocoding API to convert coordinates to address
+                        const response = await fetch(
+                            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${API_KEY}`
+                        );
+                        const data = await response.json();
+
+                        if (data.status === 'OK') {
+                            const address = data.results[0].formatted_address;
+                            document.getElementById('location').value = address;
+                            document.getElementById('location').dataset.latitude = latitude;
+                            document.getElementById('location').dataset.longitude = longitude;
+                        } else {
+                            alert('Unable to fetch address. Please enter the location manually.');
+                        }
+                    },
+                    (error) => {
+                        alert('Unable to get location. Please allow location access or enter the location manually.');
+                        console.error(error);
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser.');
+            }
+        });
+
+        // Submit the report
         document.getElementById('reportForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const location = document.getElementById('location').value;
+            const locationInput = document.getElementById('location');
+            const location = locationInput.value;
             const description = document.getElementById('description').value;
+            const latitude = locationInput.dataset.latitude || null;
+            const longitude = locationInput.dataset.longitude || null;
 
+            // If no coordinates (manually entered location), we'll geocode it on the backend
             const response = await fetch('/report', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ location, description })
+                body: JSON.stringify({ location, description, latitude, longitude })
             });
 
             const result = await response.json();
             document.getElementById('message').textContent = result.message;
             document.getElementById('reportForm').reset();
+            locationInput.dataset.latitude = '';
+            locationInput.dataset.longitude = '';
         });
     </script>
 </body>
